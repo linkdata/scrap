@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\scrap.csproj" />
+    <ProjectReference Include="../src/RapServer/RapServer.csproj" />
   </ItemGroup>
 
 </Project>
