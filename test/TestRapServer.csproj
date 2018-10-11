@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../src/RapServer/RapServer.csproj" />
+    <ProjectReference Include="../src/Rap.Server/Rap.Server.csproj" />
   </ItemGroup>
 
 </Project>
