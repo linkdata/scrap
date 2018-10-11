@@ -52,9 +52,9 @@ namespace Rap
             Console.WriteLine($"listening on {localEndPoint}");
             using (cancelToken.Register(listener.Stop))
             {
+                var muxerTasks = new List<Task>();
                 try
                 {
-                    var muxerTasks = new List<Task>();
                     while (!cancelToken.IsCancellationRequested)
                     {
                         var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
@@ -63,13 +63,13 @@ namespace Rap
                             muxerTasks.Add((new Muxer()).Run(cancelToken, tcpClient));
                         }
                     }
-                    await Task.WhenAll(muxerTasks.ToArray()).ConfigureAwait(false);
                 }
                 catch (InvalidOperationException)
                 {
                     if (!cancelToken.IsCancellationRequested)
                         throw;
                 }
+                await Task.WhenAll(muxerTasks.ToArray()).ConfigureAwait(false);
             }
         }
     }
