@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Rap.Conn/Rap.Conn.csproj" />
+    <ProjectReference Include="../Rap/Rap.csproj" />
   </ItemGroup>
 
 </Project>

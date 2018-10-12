@@ -6,10 +6,16 @@ using System.Threading.Tasks;
 
 namespace Rap
 {
-    public class Muxer
+    public class Muxer : IMuxer
     {
+        private Conn[] _conns = new Conn[Conn.MaxConnID + 1];
+
         public Muxer()
         {
+            for (int i = 0; i < _conns.Length; i++)
+            {
+                _conns[i] = new Conn(this);
+            }
         }
 
         public async Task Run(CancellationToken cancelToken, TcpClient tcpClient)
