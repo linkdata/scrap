@@ -60,7 +60,7 @@ namespace Rap
                         var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                         if (tcpClient != null)
                         {
-                            muxerTasks.Add((new Muxer()).Run(cancelToken, tcpClient));
+                            muxerTasks.Add((new Muxer(cancelToken, tcpClient)).Run());
                         }
                     }
                 }
