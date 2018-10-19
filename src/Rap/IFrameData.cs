@@ -5,6 +5,7 @@ namespace Rap
 {
     public interface IFrameData : IDisposable
     {
-        void CopyTo(Stream s);
+        void WriteTo(Stream s); // Implemented by MemoryStream
+        void ReadFrom(Stream s);
     }
 }

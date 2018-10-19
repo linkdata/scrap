@@ -5,9 +5,8 @@ using System.Threading;
 
 namespace Rap
 {
-    public class FrameData : StreamWriter, IFrameData
+    public class FrameData : MemoryStream, IFrameData
     {
-        private const int InitialBufferSize = 4096 - 16;
         private static ConcurrentBag<FrameData> _pool = new ConcurrentBag<FrameData>();
 
         public static FrameData Take()
@@ -20,30 +19,37 @@ namespace Rap
             return new FrameData();
         }
 
-        private FrameData() : base(new MemoryStream(InitialBufferSize))
-        {
-        }
-
-        public new void Dispose()
-        {
-            if (_pool.Count < Constants.MaxConnID)
-            {
-                Flush();
-                BaseStream.SetLength(0);
-                _pool.Add(this);
-            }
-            else
-            {
-                base.Dispose();
-            }
-        }
-
-        public void CopyTo(Stream s)
+        public void ReadFrom(Stream s)
         {
             Flush();
-            var memoryStream = (MemoryStream)BaseStream;
-            memoryStream.Position = 0;
-            memoryStream.CopyTo(s);
+            int count = 0;
+            // read header
+            Position = 0;
+            var ba = GetBuffer();
+            while (count < 4)
+                count += s.Read(ba, count, 4 - count);
+            int payloadSize = ((int)ba[0] << 8) | ba[1];
+            int needed = count + payloadSize;
+            while (count < needed)
+            {
+                var gotten = s.Read(GetBuffer(), count, needed);
+                count += gotten;
+                needed -= gotten;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (_pool.Count < Constants.MaxConnID)
+                {
+                    SetLength(0);
+                    _pool.Add(this);
+                    return;
+                }
+                base.Dispose();
+            }
         }
     }
 }

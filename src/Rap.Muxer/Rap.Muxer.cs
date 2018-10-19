@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 
 namespace Rap
 {
-    public class Muxer : IMuxer, IDisposable
+    public class Muxer : IMuxer
     {
         private readonly CancellationTokenSource _cts;
+        private readonly TaskCompletionSource<object> _writerTcs = new TaskCompletionSource<object>();
+        private readonly TaskCompletionSource<object> _readerTcs = new TaskCompletionSource<object>();
         private readonly TcpClient _tcpClient;
         private readonly CancellationTokenRegistration _closeRegistration;
         private readonly NetworkStream _stream;
@@ -37,16 +39,17 @@ namespace Rap
             try
             {
                 new Thread(WriterThread).Start();
+
                 using (var sr = new StreamReader(_stream))
                 {
-                    var fd = FrameData.Take();
-                    fd.Write("ok, lets see if this works.");
-                    Write(fd);
                     var data = default(string);
                     while (!((data = await sr.ReadLineAsync().ConfigureAwait(false)).Equals("exit", StringComparison.OrdinalIgnoreCase)))
                     {
-                        fd = FrameData.Take();
-                        fd.Write(data);
+                        var fd = FrameData.Take();
+                        using (var sw = new System.IO.StreamWriter(fd, System.Text.Encoding.UTF8, 512, true))
+                        {
+                            sw.WriteLine(data);
+                        }
                         Write(fd);
                     }
                 }
@@ -73,6 +76,44 @@ namespace Rap
             _writes.Add(fd);
         }
 
+        private void ReaderThread()
+        {
+            var cancelToken = _cts.Token;
+            try
+            {
+                while (true)
+                {
+                    IFrameData fd;
+                    if (_writes.TryTake(out fd))
+                    {
+                        using (fd)
+                            fd.WriteTo(_stream);
+                    }
+                    else
+                    {
+                        _stream.Flush();
+                        cancelToken.ThrowIfCancellationRequested();
+                        if (_writes.TryTake(out fd, Timeout.Infinite, cancelToken))
+                            using (fd)
+                                fd.WriteTo(_stream);
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                if (cancelToken.IsCancellationRequested)
+                    _writerTcs.SetCanceled();
+                else
+                    _writerTcs.SetException(e);
+            }
+            finally
+            {
+                // ensure we cancel the read operations
+                _cts.Cancel();
+                _writerTcs.TrySetResult(null);
+            }
+        }
+
         private void WriterThread()
         {
             var cancelToken = _cts.Token;
@@ -80,36 +121,34 @@ namespace Rap
             {
                 while (true)
                 {
-                    IFrameData frameData;
-                    if (_writes.TryTake(out frameData))
+                    IFrameData fd;
+                    if (_writes.TryTake(out fd))
                     {
-                        using (frameData)
-                            frameData.CopyTo(_stream);
+                        using (fd)
+                            fd.WriteTo(_stream);
                     }
                     else
                     {
                         _stream.Flush();
                         cancelToken.ThrowIfCancellationRequested();
-                        if (_writes.TryTake(out frameData, Timeout.Infinite, cancelToken))
-                            using (frameData)
-                                frameData.CopyTo(_stream);
+                        if (_writes.TryTake(out fd, Timeout.Infinite, cancelToken))
+                            using (fd)
+                                fd.WriteTo(_stream);
                     }
                 }
             }
-            catch (System.OperationCanceledException)
+            catch (System.Exception e)
             {
-                // ignore as they are expected
-            }
-            catch (System.IO.IOException)
-            {
-                // ignore I/O errors if we are cancelling
-                if (!cancelToken.IsCancellationRequested)
-                    throw;
+                if (cancelToken.IsCancellationRequested)
+                    _writerTcs.SetCanceled();
+                else
+                    _writerTcs.SetException(e);
             }
             finally
             {
                 // ensure we cancel the read operations
                 _cts.Cancel();
+                _writerTcs.TrySetResult(null);
             }
         }
 
